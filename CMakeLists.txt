@@ -15,6 +15,7 @@ else(WIN32)
 endif(WIN32)
 
 # SFML, we need window, system, audio (for now)
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/Modules")
 find_package(SFML COMPONENTS audio window system)
 
 # Source files, include files, scripts
