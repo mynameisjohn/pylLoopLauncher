@@ -112,14 +112,105 @@ def MakeGraph():
 
     return StateGraph(G, A, stimFn, None)
 
+def MakeSomberGraph():
+    G = nx.DiGraph()
+    
+    # Somber state: drum2, bass, star_sustain
+    lSomber1 = Leaf('bass', ['bass.wav'])
+    lSomber2 = Leaf('drums', ['drums2.wav'])
+    lSomber3 = Leaf('sustain', ['star.wav'])
+    Somber = State('Somber', [lSomber1, lSomber2, lSomber3])
+
+    # First chord state with a leaf for first chord
+    lSomberCh11 = Leaf('bass', ['bass.wav'])
+    lSomberCh12 = Leaf('drums', ['drums2.wav'])
+    lSomberCh13 = Leaf('sustain', ['starchord1.wav'])
+    SomberCh1 = State('SomberCh1', [lSomberCh11, lSomberCh12, lSomberCh13])
+
+    # Second chord is like before but with 2nd star chord
+    lSomberCh21 = Leaf('bass', ['bass.wav'])
+    lSomberCh22 = Leaf('drums', ['drums2.wav'])
+    lSomberCh23 = Leaf('sustain', ['starchord2.wav'])
+    SomberCh2 = State('SomberCh2', [lSomberCh21, lSomberCh22, lSomberCh23])
+    
+    # you know the drill
+    lSomberCh31 = Leaf('bass', ['bass.wav'])
+    lSomberCh32 = Leaf('drums', ['drums2.wav'])
+    lSomberCh33 = Leaf('sustain', ['starchord3.wav'])
+    SomberCh3 = State('SomberCh3', [lSomberCh31, lSomberCh32, lSomberCh33])
+
+    # vecs
+    toSomber    = [1, 0, 0, 0]
+    toSomberCh1 = [0, 1, 0, 0]
+    toSomberCh2 = [0, 0, 1, 0]
+    toSomberCh3 = [0, 0, 0, 1]
+
+    # Somber is connected to itself
+    G.add_edge(Somber, Somber, vec = toSomber)
+
+    # As well as all of the chord states
+    G.add_edge(Somber, SomberCh1, vec = toSomberCh1)
+    G.add_edge(Somber, SomberCh2, vec = toSomberCh2)
+    G.add_edge(Somber, SomberCh3, vec = toSomberCh3)
+
+    # And backwards
+    G.add_edge(SomberCh1, Somber, vec = toSomber)
+    G.add_edge(SomberCh2, Somber, vec = toSomber)
+    G.add_edge(SomberCh3, Somber, vec = toSomber)
+
+    # 1 points to 2 which points to 3 which points to 1
+    G.add_edge(SomberCh1, SomberCh2, vec = toSomberCh2)
+    G.add_edge(SomberCh2, SomberCh3, vec = toSomberCh3)
+    G.add_edge(SomberCh3, SomberCh1, vec = toSomberCh1)
+
+    # 2 and 3 can go back to 1, 1 can go to 3
+    G.add_edge(SomberCh2, SomberCh1, vec = toSomberCh1)
+    G.add_edge(SomberCh3, SomberCh1, vec = toSomberCh1)
+    G.add_edge(SomberCh1, SomberCh3, vec = toSomberCh3)
+
+    # The stim func for this graph
+    # treats the stimulus as some vector
+    # between [0, 0, 0]  and [1, 1, 1]
+    # and finds the neighbor of the current
+    # active state with the most suitable connecting edge
+    def stimFn(sg):
+        # None means repeat
+        if sg.stimulus is None:
+            return sg.activeState
+        # Pick the neighbor state whose 'vec' attribute
+        # is most in line with the current stimulus
+        nextState = max(sg.G.out_edges_iter(sg.activeState, data = True), key = lambda x : dot(sg.stimulus, x[2]['vec']))[1]
+        return nextState
+
+    return StateGraph(G, Somber, stimFn, None)
+
+def SomberCoro():
+    toSomber    = [1, 0, 0, 0]
+    toSomberCh1 = [0, 1, 0, 0]
+    toSomberCh2 = [0, 0, 1, 0]
+    toSomberCh3 = [0, 0, 0, 1]
+    while True:
+        yield toSomber
+        yield toSomber
+        yield toSomberCh1
+        yield toSomberCh2
+        yield toSomberCh1
+        yield toSomberCh3
+
 g_StateGraph = None
+g_SomberCoro = None
+
 def Initialize(pLoopLauncher):
     global g_StateGraph
-    g_StateGraph = MakeGraph()
+    g_StateGraph = MakeSomberGraph()
     trackMap = g_StateGraph.GetValueMap()
 
     ll = LoopLauncher(pLoopLauncher)
     ll.Initialize(trackMap)
+
+    global g_SomberCoro
+    g_SomberCoro = SomberCoro()
+    next(g_SomberCoro)
 
     nextClips = list(c[1] for c in g_StateGraph.GetNextState())
     ll.UpdatePendingClips(nextClips)
@@ -131,7 +222,7 @@ def Initialize(pLoopLauncher):
 def HandleKeys():
     if IsKeyDown(pylSFMLKeys.A):
         return [1, 0, 0]
-
+    
     if IsKeyDown(pylSFMLKeys.B):
         return [0, 1, 0]
 
@@ -142,12 +233,16 @@ def Update(pLoopLauncher):
     if IsKeyDown(pylSFMLKeys.ESC):
         return False
 
-    stimulus = HandleKeys()
-    if stimulus is not None:
-        g_StateGraph.SetStimulus(stimulus)
+    #stimulus = HandleKeys()
+    #if stimulus is not None:
+    #    g_StateGraph.SetStimulus(stimulus)
 
     ll = LoopLauncher(pLoopLauncher)
     if ll.NeedsAudio():
+
+        stimulus = next(g_SomberCoro)
+        g_StateGraph.SetStimulus(stimulus)
+
         nextClips = list(c[1] for c in g_StateGraph.GetNextState())
         ll.UpdatePendingClips(nextClips)
 

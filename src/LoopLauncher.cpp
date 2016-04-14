@@ -113,7 +113,7 @@ bool Track::SetPendingTrack( std::string trackName )
 bool Track::GetAudio( sf::Int16 * pMixBuffer, int nSamplesDesired, int nCurSamplePos )
 {
 	// Volume... a work in progress
-	const float vol_1 = 1.f / 2;
+	const float vol_1 = 1.f / 1.25;
 
 	// Pointer check
 	if ( pMixBuffer == nullptr )
@@ -156,14 +156,19 @@ bool Track::GetAudio( sf::Int16 * pMixBuffer, int nSamplesDesired, int nCurSampl
 		sf::Int16 nextSample( 0 );
 		if ( m_pPendingClip )
 			nextSample = *(m_pPendingClip->getSamples());
+
+		auto remap = [] ( float x, float m0, float M0, float m1, float M1 )
+		{
+			return (x - m0) / (M0 - m0) * (M1 - m1) + m1;
+		};
 		
 		// Crossfade the current buffer with the first sample of the pending buffer
 		// This is a work in progress, it still pops a bit
 		for ( int i = lastSample, j = 0; i < nSamplesDesired; i++ )
-		{
-			float a = 1.f - float( ++j ) / float( m_nFadeSamples );
-			sf::Int16 val = *pSoundBuf++ * vol_1;
-			sf::Int16 iVal = (sf::Int16)ceilf( a * val + (1.f - a) * nextSample );
+		{	
+			float a = remap( i, lastSample + 1, nSamplesDesired, 0, 1 );//float( ++j ) / float( m_nFadeSamples );
+			float fVal = *pSoundBuf++ * vol_1;
+			sf::Int16 iVal = (sf::Int16)( a * nextSample + (1.f - a) * fVal );
 			pMixBuffer[i] += iVal;
 		}
 

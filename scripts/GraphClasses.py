@@ -93,7 +93,11 @@ class Leaf(Node):
     # pair[0] = name, pair[1] = value
     def __next__(self):
         self.nIt += 1
-        return (self.name, random.choice(self.contents))
+        try:
+            return (self.name, random.choice(self.contents))
+        except IndexError:
+            print('Error, empty contents list in', str(self), 'returning empty string')
+            return (self.name, '')
 
     # Entering and exiting the context
     # resets the iteration count
